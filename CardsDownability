@@ -1,119 +1,137 @@
-private bool meldValid(List<int> cards)
+public bool IsMeldValid(List<int> selectedcards)
 {
-    ///Check if cards Make Collection
-    if (cards.Count < 3)
+    List<int> cards = new();
+    List<int> Jokers = new();
+
+    cards.AddRange(selectedcards);
+    cards.Sort();
+
+    //separate Jokers from other Cards
+    Jokers = cards.FindAll(c => c > 52);
+    cards.RemoveAll(c => c > 52);
+
+    if (cards.Count + Jokers.Count < 3 || cards.Count == 0) return false;
+
+    //store every card Suite and Rank
+    List<int> Suits = new();
+    List<int> Ranks = new();
+
+    foreach (int card in cards)
     {
-        return false;
-    }
+        // Set card Suit {heart,black, ...]
+        int cardSuit = (card < 52) ? card / 13 : -1;
 
-    List<int> SortedOrders = new List<int>(cards);
+        //Set card Rank [A,2,3,4..K]
+        int cardRank = (card < 52) ? card % 13 : -1;
 
-    SortedOrders.Sort();
-    ///store every card Type and Order
-    
-    List<int> Types = new(); ///card Rank
-    List<int> Ranks = new(); ///card 
-
-    ///used for to cover 3 Cards or more
-    for (int i = 0; i < SortedOrders.Count; i++)
-    {
-        int cardIndex = SortedOrders[i];
-
-        /// if it's Black ,Heart or Whatever  
-        int cardType = cardIndex / 13;
-
-        int cardRank = cardIndex - (13 * cardType);
-
+        Suits.Add(cardSuit);
         Ranks.Add(cardRank);
-        Types.Add(cardType);
     }
 
-    List<int> SortedCards = new List<int>(Ranks);
-
-    //check if there are Repeated Card: 
-    bool RepeatedType = false;
+    //check if there are Repeated Cards: 
+    bool RepeatedSuit = false;
     bool RepeatedRank = false;
-    for (int i = 0; i < Types.Count; i++)
+
+    for (int i = 0; i < Suits.Count; i++)
     {
-        for (int j = 0; j < Types.Count; j++)
+        for (int j = 0; j < Suits.Count; j++)
         {
             if (i != j)
             {
-                if (Types[i] == Types[j]) RepeatedType = true;
+                if (Suits[i] == Suits[j]) RepeatedSuit = true;
                 if (Ranks[i] == Ranks[j]) RepeatedRank = true;
             }
         }
     }
-    if (RepeatedRank && RepeatedType)
+
+    if (RepeatedRank && RepeatedSuit) return false;
+
+    ///Same Rank Diff Suit:        
+    if (Ranks.All(R => R == Ranks[0]) && cards.Count + Jokers.Count <= 4) return true;
+
+    //Same Suits Series Number:
+
+    //convert Collection into Groups of series nums
+    //add 13 to all groups exept The groups that closer to first than Last Group
+    //Calculates the Holes between The groups 
+    //check if Jokers can fit Holes 
+    //collect all groups into New Single series 
+
+
+    foreach (var S in Suits) if (S != Suits[0]) return false;
+
+    List<int> SortedCards = new(Ranks);
+    SortedCards.Sort();
+
+    //Atomize Collection into serial groups
+    int[][] Groups = new int[1][];
+    List<int> SubGroups = new();
+    int groupsCount = 1;
+
+    //separate Collection into Series Groups
+    for (int i = 0; i < SortedCards.Count; i++)
     {
-        return false;
+        if (i > 0 && Mathf.Abs(SortedCards[i] - SortedCards[i - 1]) != 1)
+        {
+            groupsCount++;
+            SubGroups.Clear();
+            System.Array.Resize(ref Groups, groupsCount);
+        }
+
+        SubGroups.Add(SortedCards[i]);
+
+        System.Array.Resize(ref Groups[groupsCount - 1], SubGroups.Count);
+        Groups[groupsCount - 1] = SubGroups.ToArray();
     }
 
-
-    //Same Rank Diff Suit:
-    float FixedCount = Ranks[0];
-    for (int i = 0; i < Ranks.Count; i++)
+    //Rearrange collection into serial Group start form King Group:
+    List<int> MeanGroup = new();
+    bool isPeriodic = SortedCards[0] + 13 - SortedCards[^1] <= 4;// if it has upper Ranks & lower Ranks
+    if (Groups.Length > 1 && isPeriodic)
     {
-        if (Ranks[i] != FixedCount) break;
-        else if (i == Ranks.Count - 1 && !RepeatedType)
+        MeanGroup.AddRange(Groups[^1]);
+        List<int> InetialGroup = Groups[0].ToList();
+        for (int i = 0; i < Groups.Length - 1; i++)
         {
+            bool gap = Mathf.Abs(InetialGroup[^1] - Groups[i][0]) < Mathf.Abs(Groups[^1][0] - Groups[i][^1]);
+            if (gap) for (int j = 0; j < Groups[i].Length; j++) Groups[i][j] += 13;
+
+            MeanGroup.AddRange(Groups[i]);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < Groups.Length; i++)
+        {
+            MeanGroup.AddRange(Groups[i]);
+        }
+    }
+    MeanGroup.Sort();
+
+    //Find Holes in new Collection:
+    List<int> SeriesHoles = new();
+    for (int i = 0; i < MeanGroup.Count - 1; i++)
+    {
+        if (Mathf.Abs(MeanGroup[i] - MeanGroup[i + 1]) != 1)
+        {
+            for (int j = MeanGroup[i] + 1; j < MeanGroup[i + 1]; j++)
+            {
+                SeriesHoles.Add(j);
+            }
+        }
+    }
+    if (SeriesHoles.Count < 1) return true;
+    if (SeriesHoles.Count > Jokers.Count) return false;
+    else
+    {
+        if (Jokers.Count == SeriesHoles.Count) return true;
+        else
+        {
+            for (int i = 0; i < Jokers.Count - SeriesHoles.Count; i++) MeanGroup.Add(MeanGroup[^1] + 1);
+
             return true;
         }
+
     }
 
-
-    //Same Suits Series Number 
-    float FixedRank = Types[0];  ///Stagination Rank
-
-    List<int> newSortedOrders = new List<int>(Ranks); /// clamp All Ranks withen [0,12]
-    newSortedOrders.Sort();
-
-    bool isSeries = true;
-    bool HasKingAndAce =
-        newSortedOrders[newSortedOrders.Count - 1] == 12 && newSortedOrders[0] == 0; ///check if collection Contains King & Ace
-
-    List<int> deltaCards = new();
-    int M = -1;
-    bool reached = false;
-    for (int i = 0; i < Types.Count; i++)
-    {
-        if (Types[i] != FixedRank) break;
-        else if (i == Ranks.Count - 1)
-        {
-            for (int j = 0; j < newSortedOrders.Count - 1; j++)
-            {
-                if (!HasKingAndAce)
-                {
-                    if (Mathf.Abs(newSortedOrders[j] - newSortedOrders[j + 1]) != 1 || RepeatedRank)
-                    {
-                        isSeries = false;
-                    }
-                }
-                else
-                {
-                    if (!reached)
-                    {
-                        M++;
-                        if (Mathf.Abs(SortedCards[M] - SortedCards[M + 1]) != 1 || RepeatedRank) reached = true;
-                        deltaCards.Add(SortedCards[M]);
-                        newSortedOrders[M] = deltaCards[M] + 13;
-                    }
-                }
-            }
-            newSortedOrders.Sort();
-
-            for (int j = 0; j < newSortedOrders.Count - 1; j++)
-            {
-                if (Mathf.Abs(newSortedOrders[j] - newSortedOrders[j + 1]) != 1 || RepeatedRank)
-                {
-                    isSeries = false;
-                }
-
-            }
-            return isSeries;
-
-        }
-    }
-    return false;
 }
-
